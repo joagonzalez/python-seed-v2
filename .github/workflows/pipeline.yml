@@ -37,11 +37,29 @@ jobs:
 
       - name: Notify Telegram - pre build
         run: |
-          curl -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
-            -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d parse_mode="MarkdownV2" \
-            -d text="🛠 *Build Started*\n\`\`\`\nBranch: $BRANCH\nCommit: $COMMIT\nAuthor: $AUTHOR\nMessage: $MESSAGE\nApp Version: $VERSION\n\`\`\`"
+          BRANCH="${{ steps.gitinfo.outputs.branch }}"
+          COMMIT="${{ steps.gitinfo.outputs.commit_short }}"
+          AUTHOR="${{ steps.gitinfo.outputs.author }}"
+          MESSAGE="${{ steps.gitinfo.outputs.commit_msg }}"
+          VERSION="${{ steps.gitinfo.outputs.version }}"
 
+          TEXT="🛠 Build Started
+            --------------------------------------------------------------
+            Branch: ${BRANCH}
+            Commit: ${COMMIT}
+            Author: ${AUTHOR}
+            Message: ${MESSAGE}
+            App Version: ${VERSION}"
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
       - name: Install dependencies
         run: |
           make install
