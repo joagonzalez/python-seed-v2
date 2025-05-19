@@ -37,10 +37,10 @@ jobs:
 
       - name: Notify Telegram - pre build
         run: |
-          curl --silent --show-error --fail \
-            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
-            --form chat_id="${TELEGRAM_CHAT_ID}" \
-            --form text="🔧 Build Started\n--------------------------------------------------------------\n🔀 Branch: ${{ steps.gitinfo.outputs.branch }}\n📦 Commit: ${{ steps.gitinfo.outputs.commit_short }}\n👤 Author: ${{ steps.gitinfo.outputs.author }}\n📝 Message: ${{ steps.gitinfo.outputs.commit_msg }}\n🚀 App Version: ${{ steps.gitinfo.outputs.version }}"
+          curl -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d parse_mode="MarkdownV2" \
+            -d text="🛠 *Build Started*\n\`\`\`\nBranch: $BRANCH\nCommit: $COMMIT\nAuthor: $AUTHOR\nMessage: $MESSAGE\nApp Version: $VERSION\n\`\`\`"
 
       - name: Install dependencies
         run: |
