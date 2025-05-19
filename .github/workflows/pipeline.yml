@@ -1,0 +1,98 @@
+name: GitHub Actions Pipeline
+run-name: "CI #${{ github.run_number }} by ${{ github.actor }} on ${{ github.ref_name }}"
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Git Metadata
+        id: gitinfo
+        run: |
+          GIT_COMMIT=$(git rev-parse HEAD)
+          GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
+          GIT_MESSAGE=$(git log -1 --pretty=%s)
+          GIT_AUTHOR=$(git log -1 --pretty=%ae)
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          VERSION_PART="${BRANCH_NAME#*-}"
+          VERSION="${VERSION_PART:-default}-${GIT_COMMIT_SHORT}-${GITHUB_RUN_NUMBER}"
+
+          echo "commit_short=$GIT_COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "commit_msg=$GIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "author=$GIT_AUTHOR" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Notify Telegram - pre build
+        run: |
+          curl --silent --show-error --fail \
+            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --form chat_id="${TELEGRAM_CHAT_ID}" \
+            --form text="🔧 Build Started\n--------------------------------------------------------------\n🔀 Branch: ${{ steps.gitinfo.outputs.branch }}\n📦 Commit: ${{ steps.gitinfo.outputs.commit_short }}\n👤 Author: ${{ steps.gitinfo.outputs.author }}\n📝 Message: ${{ steps.gitinfo.outputs.commit_msg }}\n🚀 App Version: ${{ steps.gitinfo.outputs.version }}"
+
+      - name: Install dependencies
+        run: |
+          make install
+      
+      - name: Code quality
+        run: |
+          make code-quality
+
+      - name: Run tests
+        run: |
+          make test
+
+      - name: Build and push Docker image (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
+        run: |
+          docker build -t joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }} -f build/calculator/Dockerfile .
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+          docker push joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }}
+
+      - name: Deploy to VPS (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
+        run: |
+          echo "Deploying version ${{ steps.gitinfo.outputs.version }}"
+          API_VERSION=${{ steps.gitinfo.outputs.version }} make deploy
+
+      - name: Create GitHub Release (master only)
+        if: github.ref_name == 'master'
+        run: |
+          VERSION=$(echo "${{ steps.gitinfo.outputs.commit_msg }}" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+")
+          if [[ -n "$VERSION" ]]; then
+            echo "📦 Creating release $VERSION"
+            gh release delete "$VERSION" -y || true
+            gh release create "$VERSION" --notes "${{ steps.gitinfo.outputs.commit_msg }}"
+          else
+            echo "⚠️ No version tag found in commit message, skipping release"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Telegram - success
+        if: success()
+        run: |
+          curl --silent --show-error --fail \
+            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --form chat_id="${TELEGRAM_CHAT_ID}" \
+            --form text="✅ Build Success: ${{ github.workflow }} on branch ${{ steps.gitinfo.outputs.branch }}"
+
+      - name: Notify Telegram - failure
+        if: failure()
+        run: |
+          curl --silent --show-error --fail \
+            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --form chat_id="${TELEGRAM_CHAT_ID}" \
+            --form text="❌ Build Failed: ${{ github.workflow }} on branch ${{ steps.gitinfo.outputs.branch }}"
