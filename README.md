@@ -1,9 +1,9 @@
 # python-seed-project
 ![Python](https://img.shields.io/badge/python-v3.12.x-orange)
 ![Python](https://img.shields.io/badge/platform-linux-blue)
-[![Build Status](https://jenkins.qwerty.com.ar/buildStatus/icon?job=python-seed)](https://jenkins.qwerty.com.ar/job/python-seed/)
+[![Build Status](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml/badge.svg)](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml)
 [![Documentation](https://readthedocs.org/projects/python-seed/badge/?)](https://python-seed.readthedocs.io/en/latest/)
-[![Coverage Status](https://coveralls.io/repos/github/joagonzalez/python-seed/badge.svg?branch=origin/master&kill_cache=1)](https://coveralls.io/github/joagonzalez/python-seed?branch=origin/master)
+[![Coverage Status](https://coveralls.io/repos/github/joagonzalez/python-seed-v2/badge.svg?branch=feature/github-actions)](https://coveralls.io/github/joagonzalez/python-seed-v2?branch=feature/github-actions)
 ---
 **Content**
 - [Getting started](#getting-started)
