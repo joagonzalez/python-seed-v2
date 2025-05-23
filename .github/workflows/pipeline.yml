@@ -1,0 +1,145 @@
+name: GitHub Actions Pipeline
+run-name: "CI #${{ github.run_number }} by ${{ github.actor }} on ${{ github.ref_name }}"
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Git Metadata
+        id: gitinfo
+        run: |
+          GIT_COMMIT=$(git rev-parse HEAD)
+          GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
+          GIT_MESSAGE=$(git log -1 --pretty=%s)
+          GIT_AUTHOR=$(git log -1 --pretty=%ae)
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          VERSION_PART="${BRANCH_NAME#*-}"
+          VERSION="${VERSION_PART:-default}-${GIT_COMMIT_SHORT}-${GITHUB_RUN_NUMBER}"
+
+          echo "commit_short=$GIT_COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "commit_msg=$GIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "author=$GIT_AUTHOR" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Notify Telegram - pre build
+        run: |
+          BRANCH="${{ steps.gitinfo.outputs.branch }}"
+          COMMIT="${{ steps.gitinfo.outputs.commit_short }}"
+          AUTHOR="${{ steps.gitinfo.outputs.author }}"
+          MESSAGE="${{ steps.gitinfo.outputs.commit_msg }}"
+          VERSION="${{ steps.gitinfo.outputs.version }}"
+
+          TEXT="🛠 Build Started
+            --------------------------------------------------------------
+            Branch: ${BRANCH}
+            Commit: ${COMMIT}
+            Author: ${AUTHOR}
+            Message: ${MESSAGE}
+            App Version: ${VERSION}"
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          make install
+      
+      - name: Code quality
+        run: |
+          make code-quality
+
+      - name: Run tests
+        run: |
+          make test
+
+      - name: Build and push Docker image (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
+        run: |
+          docker build -t joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }} -f build/calculator/Dockerfile .
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+          docker push joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }}
+
+      - name: Deploy to VPS (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG }}
+        run: |
+          echo "$KUBECONFIG_B64" | base64 -d > kubeconfig.yaml
+          export KUBECONFIG=$PWD/kubeconfig.yaml
+
+          kubectl version --client
+          kubectl config get-contexts
+          echo "Deploying version ${{ steps.gitinfo.outputs.version }}"
+          kubectl apply -f build/calculator/k8s/
+
+      - name: Publish coverage to Coveralls (master only)
+        if: github.ref_name == 'master'
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+        run: |
+          make coverage-publish
+
+      - name: Create GitHub Release (master only)
+        if: github.ref_name == 'master' && github.event.pull_request.head.ref != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RC_BRANCH="${{ github.event.pull_request.head.ref }}"
+          echo "RC branch: $RC_BRANCH"
+
+          VERSION=$(echo "$RC_BRANCH" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+")
+          if [[ -z "$VERSION" ]]; then
+            echo "❌ No version tag found in branch name. Expected rc-vX.Y.Z"
+            exit 0
+          fi
+
+          echo "✅ Version to release: $VERSION"
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
+          echo "🔍 Generating changelog from commits..."
+          CHANGELOG=$(git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0)..HEAD)
+
+          echo "📦 Creating GitHub release..."
+          gh release delete "$VERSION" -y || true
+          gh release create "$VERSION" --title "$VERSION" --notes "$CHANGELOG"
+
+      - name: Notify Telegram - success
+        if: success()
+        run: |
+          curl --silent --show-error --fail \
+            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --form chat_id="${TELEGRAM_CHAT_ID}" \
+            --form text="✅ Build Success: ${{ github.workflow }} on branch ${{ steps.gitinfo.outputs.branch }}"
+
+      - name: Notify Telegram - failure
+        if: failure()
+        run: |
+          curl --silent --show-error --fail \
+            --location --request POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --form chat_id="${TELEGRAM_CHAT_ID}" \
+            --form text="❌ Build Failed: ${{ github.workflow }} on branch ${{ steps.gitinfo.outputs.branch }}"
