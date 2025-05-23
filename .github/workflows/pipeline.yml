@@ -81,23 +81,52 @@ jobs:
 
       - name: Deploy to VPS (rc-* only)
         if: startsWith(github.ref_name, 'rc-')
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG }}
         run: |
+          echo "$KUBECONFIG_B64" | base64 -d > kubeconfig.yaml
+          export KUBECONFIG=$PWD/kubeconfig.yaml
+
+          kubectl version --client
+          kubectl config get-contexts
           echo "Deploying version ${{ steps.gitinfo.outputs.version }}"
-          API_VERSION=${{ steps.gitinfo.outputs.version }} make deploy
+          kubectl apply -f build/calculator/k8s/
+
+      - name: Publish coverage to Coveralls (master only)
+        if: github.ref_name == 'master'
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+        run: |
+          make coverage-publish
 
       - name: Create GitHub Release (master only)
-        if: github.ref_name == 'master'
-        run: |
-          VERSION=$(echo "${{ steps.gitinfo.outputs.commit_msg }}" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+")
-          if [[ -n "$VERSION" ]]; then
-            echo "📦 Creating release $VERSION"
-            gh release delete "$VERSION" -y || true
-            gh release create "$VERSION" --notes "${{ steps.gitinfo.outputs.commit_msg }}"
-          else
-            echo "⚠️ No version tag found in commit message, skipping release"
-          fi
+        if: github.ref_name == 'master' && github.event.pull_request.head.ref != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RC_BRANCH="${{ github.event.pull_request.head.ref }}"
+          echo "RC branch: $RC_BRANCH"
+
+          VERSION=$(echo "$RC_BRANCH" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+")
+          if [[ -z "$VERSION" ]]; then
+            echo "❌ No version tag found in branch name. Expected rc-vX.Y.Z"
+            exit 0
+          fi
+
+          echo "✅ Version to release: $VERSION"
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
+          echo "🔍 Generating changelog from commits..."
+          CHANGELOG=$(git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0)..HEAD)
+
+          echo "📦 Creating GitHub release..."
+          gh release delete "$VERSION" -y || true
+          gh release create "$VERSION" --title "$VERSION" --notes "$CHANGELOG"
 
       - name: Notify Telegram - success
         if: success()
