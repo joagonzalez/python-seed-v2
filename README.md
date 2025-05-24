@@ -3,7 +3,8 @@
 ![Python](https://img.shields.io/badge/platform-linux-blue)
 [![Build Status](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml/badge.svg)](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml)
 [![Documentation](https://readthedocs.org/projects/python-seed/badge/?)](https://python-seed.readthedocs.io/en/latest/)
-[![Coverage Status](https://coveralls.io/repos/github/joagonzalez/python-seed-v2/badge.svg?branch=feature/github-actions)](https://coveralls.io/github/joagonzalez/python-seed-v2?branch=feature/github-actions)
+[![Coverage Status](https://coveralls.io/repos/github/joagonzalez/python-seed-v2/badge.svg?branch=master)](https://coveralls.io/github/joagonzalez/python-seed-v2?branch=master)
+
 ---
 **Content**
 - [Getting started](#getting-started)
