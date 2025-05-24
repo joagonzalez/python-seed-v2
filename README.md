@@ -2,7 +2,7 @@
 ![Python](https://img.shields.io/badge/python-v3.12.x-orange)
 ![Python](https://img.shields.io/badge/platform-linux-blue)
 [![Build Status](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml/badge.svg)](https://github.com/joagonzalez/python-seed-v2/actions/workflows/pipeline.yml)
-[![Documentation](https://readthedocs.org/projects/python-seed/badge/?)](https://python-seed.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/python-seed-v2/badge/?)](https://python-seed-v2.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/github/joagonzalez/python-seed-v2/badge.svg?branch=master)](https://coveralls.io/github/joagonzalez/python-seed-v2?branch=master)
 
 ---
@@ -49,16 +49,16 @@ Static documentation is generated at *docs/* folder and is deployed when a relea
 
 Docs URL is published in badge in this README.
 
+Once configured via the Read the Docs UI, a webhook is automatically added to the repository. This webhook listens for new merge commits to the `master` branch and triggers the documentation rebuild process by sending an HTTPS request to Read the Docs.
+
 ## CICD Pipeline
-The pipeline uses a custom docker agent with all the neccessary  requirements. It also uses conditionals to fork workflow executions depending on branch naming, in this way we can achieve our goal using only one pipeline. Callback on success and on failure are used in order to send messages to a specific telegram bot.
+The pipeline leverages GitHub Actions, installing all required dependencies directly on the GitHub-hosted runner. Conditional steps are used to control workflow execution based on branch naming, allowing a single pipeline to handle different scenarios. Notifications on success and failure are sent to a specific Telegram bot using callbacks.
 
 <img src="docs/pipelines/pipeline.png" />
 
 ## Build
 ```bash
-make build # build api image, only for development
-make build-doc # build documentation image, only for development
-make build-github-actions-builder # build a new image to be used as CI CD pipeline builder
+build-images # build api image and documentation image, only for development
 ```
 
 ## Run
@@ -72,7 +72,13 @@ make code-quality
 make test
 make doc # run mkdocs development server
 make run # run api using local uvicorn
-make deploy-local # deploy docker-compose stack locally
+```
+
+To deploy the application locally on a Minikube Kubernetes cluster, use the provided Makefile command:
+
+```bash
+# Not implemented yet
+make deploy-minikube # deploys the application to your local Minikube cluster
 ```
 
 ### Production
