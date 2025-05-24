@@ -137,7 +137,7 @@ jobs:
           git config user.email "actions@github.com"
 
           # Crear tag si no existe aún
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          if git ls-remote --tags origin | grep -q "refs/tags/$VERSION$"; then
             echo "⚠️ Tag $VERSION already exists. Skipping tag creation."
           else
             git tag "$VERSION"
