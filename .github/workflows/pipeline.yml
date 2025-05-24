@@ -72,7 +72,8 @@ jobs:
         run: |
           make test
 
-      - name: Log in to Docker Hub
+      - name: Log in to Docker Hub (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
         run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USER }}" --password-stdin
         env:
           REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
