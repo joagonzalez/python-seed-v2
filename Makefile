@@ -1,5 +1,5 @@
 run:
-	uv run python run.py
+	API_VERSION=$$(cat VERSION) uv run python run.py
 
 install:
 	uv sync

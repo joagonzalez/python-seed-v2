@@ -22,6 +22,8 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "production"
+            - name: API_VERSION
+              value: "${IMAGE_TAG}"
 ---
 apiVersion: v1
 kind: Service
