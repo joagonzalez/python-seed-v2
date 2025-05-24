@@ -18,7 +18,7 @@ spec:
         - name: calculator
           image: joagonzalez/python-seed-api:${IMAGE_TAG}
           ports:
-            - containerPort: 8000
+            - containerPort: 5000
           env:
             - name: ENVIRONMENT
               value: "production"
@@ -33,7 +33,7 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 8000
+      targetPort: 5000
   type: ClusterIP
 ---
 # Traefik Middleware for HTTPS redirect
