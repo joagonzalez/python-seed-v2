@@ -94,10 +94,11 @@ jobs:
           echo "$KUBECONFIG_B64" | base64 -d > kubeconfig.yaml
           export KUBECONFIG=$PWD/kubeconfig.yaml
 
+          export IMAGE_TAG=${{ steps.gitinfo.outputs.version }}
           kubectl version --client
           kubectl config get-contexts
-          echo "Deploying version ${{ steps.gitinfo.outputs.version }}"
-          kubectl apply -f build/calculator/k8s/
+          echo "Deploying version $IMAGE_TAG"
+          envsubst < build/k8s/calculator.yaml | kubectl apply -f -
 
       - name: Publish coverage to Coveralls (master only)
         if: github.ref_name == 'master'
