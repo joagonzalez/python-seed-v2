@@ -39,6 +39,6 @@ checklist: typehint lint test clean
 code-quality: typehint lint clean
 
 coverage-publish:
-	COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) coveralls
+	uv run COVERALLS_REPO_TOKEN=$(COVERALLS_REPO_TOKEN) coveralls
 
 .PHONY: checklist
