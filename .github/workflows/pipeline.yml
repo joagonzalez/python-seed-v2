@@ -35,6 +35,16 @@ jobs:
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Set VERSION file (rc-* only)
+        if: startsWith(github.ref_name, 'rc-')
+        run: |
+          echo "${{ steps.gitinfo.outputs.version }}" > VERSION
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add VERSION
+          git commit -m "ci: set VERSION file" || echo "No changes to commit"
+          git push
+
       - name: Notify Telegram - pre build
         run: |
           BRANCH="${{ steps.gitinfo.outputs.branch }}"
@@ -82,9 +92,9 @@ jobs:
       - name: Build and push Docker image (rc-* only)
         if: startsWith(github.ref_name, 'rc-')
         run: |
-          docker build -t joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }} -f build/calculator/Dockerfile .
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.REGISTRY_USER }}" --password-stdin
-          docker push joagonzalez/python-seed-api:${{ steps.gitinfo.outputs.version }}
+          VERSION=$(cat VERSION)
+          docker build -t joagonzalez/python-seed-api:$VERSION -f build/calculator/Dockerfile .
+          docker push joagonzalez/python-seed-api:$VERSION
 
       - name: Deploy to VPS (rc-* only)
         if: startsWith(github.ref_name, 'rc-')
@@ -94,7 +104,7 @@ jobs:
           echo "$KUBECONFIG_B64" | base64 -d > kubeconfig.yaml
           export KUBECONFIG=$PWD/kubeconfig.yaml
 
-          export IMAGE_TAG=${{ steps.gitinfo.outputs.version }}
+          export IMAGE_TAG=$(cat VERSION)
           kubectl version --client
           kubectl config get-contexts
           echo "Deploying version $IMAGE_TAG"
@@ -108,20 +118,13 @@ jobs:
           make coverage-publish
 
       - name: Create GitHub Release (master only)
-        if: github.ref_name == 'master' && github.event.pull_request.head.ref != ''
+        if: github.ref_name == 'master'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RC_BRANCH="${{ github.event.pull_request.head.ref }}"
-          echo "RC branch: $RC_BRANCH"
-
-          VERSION=$(echo "$RC_BRANCH" | grep -o "v[0-9]\+\.[0-9]\+\.[0-9]\+")
-          if [[ -z "$VERSION" ]]; then
-            echo "❌ No version tag found in branch name. Expected rc-vX.Y.Z"
-            exit 0
-          fi
-
-          echo "✅ Version to release: $VERSION"
+          FULL_VERSION=$(cat VERSION)
+          VERSION=$(echo "$FULL_VERSION" | cut -d '-' -f1)
+          echo "🚀 Creating release: $VERSION"
 
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -129,10 +132,8 @@ jobs:
           git tag "$VERSION"
           git push origin "$VERSION"
 
-          echo "🔍 Generating changelog from commits..."
           CHANGELOG=$(git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0)..HEAD)
 
-          echo "📦 Creating GitHub release..."
           gh release delete "$VERSION" -y || true
           gh release create "$VERSION" --title "$VERSION" --notes "$CHANGELOG"
 
