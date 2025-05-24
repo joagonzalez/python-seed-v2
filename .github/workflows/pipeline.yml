@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: write
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -127,17 +127,36 @@ jobs:
         run: |
           FULL_VERSION=$(cat VERSION)
           VERSION=$(echo "$FULL_VERSION" | cut -d '-' -f1)
+          COMMIT=$(git rev-parse HEAD)
+
           echo "🚀 Creating release: $VERSION"
+          echo "🔁 Commit: $COMMIT"
+          echo "📦 Based on build: $FULL_VERSION"
 
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-          git tag "$VERSION"
-          git push origin "$VERSION"
+          # Crear tag si no existe aún
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "⚠️ Tag $VERSION already exists. Skipping tag creation."
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+          fi
 
-          CHANGELOG=$(git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0)..HEAD)
+          echo "🔍 Generating changelog..."
+          CHANGELOG="🔖 Version: $VERSION
 
+          🔍 Based on internal build: $FULL_VERSION
+          🔀 Commit: $COMMIT
+
+          📋 Changes:
+          $(git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0)..HEAD)"
+
+          echo "🧹 Deleting release if already exists..."
           gh release delete "$VERSION" -y || true
+
+          echo "📦 Creating GitHub release..."
           gh release create "$VERSION" --title "$VERSION" --notes "$CHANGELOG"
 
       - name: Notify Telegram - success
